@@ -1,3 +1,5 @@
+from collections import Counter
+
 from mtg_optimize.card import Card
 from mtg_optimize.simulator import DrawSimulator, LandPermanent, _can_pay_for_spell, _pay_for_spell
 
@@ -61,6 +63,7 @@ def test_enters_tapped_lands_only_produce_on_later_turns():
         mana_cost=1,
         mana_cost_symbols=("U",),
         colors=("U",),
+        tags=("counter",),
     )
 
     deck = {cheap_spell: 6, tapped_land: 1}
@@ -88,6 +91,7 @@ def test_choose_color_lands_pay_correct_color_after_untap():
         mana_cost=1,
         mana_cost_symbols=("R",),
         colors=("R",),
+        tags=("removal",),
     )
 
     deck = {red_spell: 6, thriving_land: 1}
@@ -100,3 +104,120 @@ def test_choose_color_lands_pay_correct_color_after_untap():
     # Turn 2: land untaps and can produce red to cast Lightning Bolt
     assert trace.turns[1].spells_cast == 1
     assert any("Tapped Thriving Grove for R mana" in action for action in trace.turns[1].actions)
+
+
+def test_noninteractive_spells_wait_for_creatures():
+    pump_spell = Card(
+        name="Shape the Sands",
+        type_line="Instant",
+        mana_cost=1,
+        mana_cost_symbols=("G",),
+        colors=("G",),
+    )
+    land = Card(name="Forest", type_line="Land", produced_mana=("G",))
+
+    deck = {land: 7, pump_spell: 2}
+    simulator = DrawSimulator(deck, _StaticRng())
+    trace = simulator.simulate_with_trace(turns=2)
+
+    assert trace.turns[0].spells_cast == 0
+    assert trace.turns[1].spells_cast == 0
+
+
+def test_buffs_cast_after_creature_hits_battlefield():
+    land = Card(name="Forest", type_line="Land", produced_mana=("G",))
+    pump_spell = Card(
+        name="Shape the Sands",
+        type_line="Instant",
+        mana_cost=1,
+        mana_cost_symbols=("G",),
+        colors=("G",),
+    )
+    creature = Card(
+        name="Elvish Mystic",
+        type_line="Creature",
+        mana_cost=1,
+        mana_cost_symbols=("G",),
+        power=1,
+        toughness=1,
+        colors=("G",),
+    )
+
+    deck = {land: 7, pump_spell: 1, creature: 1}
+    simulator = DrawSimulator(deck, _StaticRng())
+    trace = simulator.simulate_with_trace(turns=2)
+
+    # Turn 1: pump spell is held because no creatures are on the battlefield yet
+    assert trace.turns[0].spells_cast == 1
+    assert trace.turns[0].spell_impact == -3
+    assert any(
+        "Held Shape the Sands until a creature is on the battlefield"
+        in action
+        for action in trace.turns[0].actions
+    )
+
+    # Turn 2: with a creature now in play, the pump spell can be cast
+    assert trace.turns[1].spells_cast == 1
+
+
+def test_holding_spells_only_logged_when_castable():
+    land = Card(name="Forest", type_line="Land", produced_mana=("G",))
+    pump_spell = Card(
+        name="Titanic Growth",
+        type_line="Instant",
+        mana_cost=2,
+        mana_cost_symbols=("G",),
+        generic_cost=1,
+        colors=("G",),
+    )
+
+    deck = {land: 7, pump_spell: 2}
+    simulator = DrawSimulator(deck, _StaticRng())
+    trace = simulator.simulate_with_trace(turns=1)
+
+    # With only one land available, the pump spell is not yet castable, so we do not log holding it
+    assert trace.turns[0].spells_cast == 0
+    assert trace.turns[0].spell_impact == 0
+    assert not any(
+        "Held Titanic Growth until a creature is on the battlefield" in action
+        for action in trace.turns[0].actions
+    )
+
+
+def test_colors_are_used_when_mana_symbols_missing():
+    island = Card(name="Island", type_line="Land", colors=("U",))
+    green_creature = Card(
+        name="Turtle-Duck",
+        type_line="Creature",
+        mana_cost=1,
+        colors=("G",),
+        power=1,
+        toughness=1,
+    )
+
+    deck = Counter()
+    deck[green_creature] = 5
+    deck[island] = 5
+
+    simulator = DrawSimulator(deck, _StaticRng())
+    trace = simulator.simulate_with_trace(turns=1)
+
+    assert trace.turns[0].spells_cast == 0
+    assert trace.turns[0].color_screw is True
+    assert all("Cast Turtle-Duck" not in action for action in trace.turns[0].actions)
+
+
+def test_land_colors_allow_casting_without_produced_mana_field():
+    forest = Card(name="Forest", type_line="Land", colors=("G",))
+    creature = Card(name="Warden of the Woods", type_line="Creature", mana_cost=2, colors=("G", "G"))
+
+    deck = Counter()
+    deck[creature] = 5
+    deck[forest] = 5
+
+    simulator = DrawSimulator(deck, _StaticRng())
+    trace = simulator.simulate_with_trace(turns=2)
+
+    assert trace.turns[0].spells_cast == 0
+    assert trace.turns[1].spells_cast == 1
+    assert any("Tapped Forest for G mana" in action for action in trace.turns[1].actions)

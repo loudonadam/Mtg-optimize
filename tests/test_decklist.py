@@ -1,4 +1,5 @@
 import io
+import json
 import sys
 from pathlib import Path
 from urllib.error import HTTPError
@@ -23,6 +24,41 @@ def test_fetch_card_metadata_reports_not_found(monkeypatch):
 
     assert "Nonexistent Card" in str(excinfo.value)
     assert "404" in str(excinfo.value)
+
+
+def test_fetch_card_metadata_includes_power_and_toughness(monkeypatch):
+    """Creature stats are carried through so early plays are weighted correctly."""
+
+    class FakeResponse:
+        def __init__(self, payload: dict):
+            self.payload = payload
+
+        def read(self):
+            return json.dumps(self.payload).encode("utf-8")
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+    def fake_urlopen(url, timeout):
+        payload = {
+            "name": "Aegis Turtle",
+            "type_line": "Creature — Turtle",
+            "cmc": 1,
+            "mana_cost": "{U}",
+            "power": "0",
+            "toughness": "5",
+        }
+        return FakeResponse(payload)
+
+    monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
+
+    card = fetch_card_metadata("Aegis Turtle")
+
+    assert card.power == 0
+    assert card.toughness == 5
 
 
 def test_parse_decklist_lines_supports_impact_scores():

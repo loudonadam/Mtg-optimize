@@ -138,11 +138,22 @@ def fetch_card_metadata(name: str) -> Card:
         "enters the battlefield tapped" in oracle_text or "enters tapped" in oracle_text
     )
 
+    def _parse_stat(value: str | None) -> int | None:
+        try:
+            return int(value) if value is not None else None
+        except ValueError:
+            return None
+
+    power = _parse_stat(payload.get("power"))
+    toughness = _parse_stat(payload.get("toughness"))
+
     return Card(
         name=payload.get("name", name),
         type_line=type_line or ("land" if is_land else "spell"),
         mana_cost=0 if is_land else mana_cost,
         colors=colors,
+        power=power,
+        toughness=toughness,
         is_basic_land=is_basic,
         mana_cost_symbols=mana_symbols if not is_land else tuple(),
         generic_cost=generic_cost if not is_land else 0,
