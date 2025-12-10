@@ -20,7 +20,7 @@ def test_brute_force_reports_progress():
     decks = brute_force_decks(choices, config, progress=progress)
 
     assert calls[0] == (0, 3)
-    assert calls[-1][0] == 3
+    assert calls[-1] == (2, 2)
     assert len(decks) == 2  # (0,1) and (1,0) combinations within the limit
 
 
@@ -45,3 +45,16 @@ def test_rank_decks_reports_progress(monkeypatch):
     assert calls[0] == (0, 2)
     assert calls[-1] == (2, 2)
     assert len(summaries) == 2
+
+
+def test_brute_force_explores_valid_decks_even_with_small_limit():
+    choices = [
+        CardChoice(Card("One", type_line="spell"), min_count=0, max_count=4),
+        CardChoice(Card("Two", type_line="spell"), min_count=0, max_count=4),
+        CardChoice(Card("Three", type_line="spell"), min_count=0, max_count=4),
+    ]
+    config = SearchConfig(deck_size=6, brute_force_limit=5)
+
+    decks = brute_force_decks(choices, config)
+
+    assert len(decks) == 5  # obeys limit but still finds valid deck-size matches

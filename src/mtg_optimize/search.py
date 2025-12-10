@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import itertools
 import time
 from dataclasses import dataclass, field
 from typing import Callable, Iterable, List, Sequence
@@ -30,42 +29,65 @@ def brute_force_decks(
     decks: List[DeckList] = []
     total_cards = len(choices)
 
-    option_spaces = [tuple(c.iter_options()) for c in choices]
-    total_combinations = 1
-    for opts in option_spaces:
-        total_combinations *= len(opts)
-    target = config.brute_force_limit or total_combinations
+    # Precompute suffix bounds to prune impossible branches quickly.
+    min_suffix: List[int] = [0] * (total_cards + 1)
+    max_suffix: List[int] = [0] * (total_cards + 1)
+    for idx in range(total_cards - 1, -1, -1):
+        min_suffix[idx] = min_suffix[idx + 1] + choices[idx].min_count
+        max_suffix[idx] = max_suffix[idx + 1] + choices[idx].max_count
 
-    counter = 0
+    target = config.brute_force_limit or 0
+    counter = 0  # number of valid decks collected
     last_report = time.monotonic()
 
-    def maybe_report() -> None:
+    def report(force: bool = False, total_override: int | None = None) -> None:
         nonlocal last_report
         if progress is None:
             return
+        total = total_override if total_override is not None else target
         now = time.monotonic()
-        if counter == target or now - last_report >= 1:
-            progress(counter, target)
+        if force or total == 0 or now - last_report >= 1 or counter == total:
+            progress(counter, total)
             last_report = now
 
     if progress:
-        progress(0, target)
+        report(force=True)
 
-    for counts in itertools.product(*option_spaces):
+    def backtrack(slot: int, remaining: int, chosen: List[int]) -> None:
+        nonlocal counter
         if config.brute_force_limit is not None and counter >= config.brute_force_limit:
-            break
-        counter += 1
-        if sum(counts) != config.deck_size:
-            maybe_report()
-            continue
-        deck: DeckList = DeckList()
-        for idx in range(total_cards):
-            deck[choices[idx].card] = counts[idx]
-        decks.append(deck)
-        maybe_report()
+            return
+
+        if remaining < min_suffix[slot] or remaining > max_suffix[slot]:
+            return
+
+        if slot == total_cards:
+            if remaining == 0:
+                deck: DeckList = DeckList()
+                for idx, count in enumerate(chosen):
+                    deck[choices[idx].card] = count
+                decks.append(deck)
+                counter += 1
+                report()
+            return
+
+        choice = choices[slot]
+        min_next = min_suffix[slot + 1]
+        max_next = max_suffix[slot + 1]
+        max_allowed = min(choice.max_count, remaining - min_next)
+        for count in range(choice.min_count, max_allowed + 1):
+            next_remaining = remaining - count
+            if next_remaining > max_next:
+                continue
+            chosen.append(count)
+            backtrack(slot + 1, next_remaining, chosen)
+            chosen.pop()
+
+    backtrack(0, config.deck_size, [])
 
     if progress:
-        progress(counter, target)
+        total = target if target and counter >= target else counter
+        report(force=True, total_override=total)
 
     return decks
 
