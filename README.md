@@ -53,7 +53,7 @@ To enforce deck-shape requirements while exploring a decklist pool, create a sma
 { "min_lands": 16, "max_lands": 26, "min_creatures": 12, "max_creatures": 30 }
 ```
 
-Then run with `--rules path/to/rules.json` so only decks within those bounds are generated.
+This repository includes a starter `deck_rules.json` you can edit directly and pass to the CLI. Update the numbers to match the constraints you want, then run with `--rules deck_rules.json` (or another path) so only decks within those bounds are generated.
 
 If you want to simulate an exact imported list instead of exploring combinations, add `--fixed-deck` (and optionally `--deck-size` to match sideboarded counts). This pins every card to the count written and reduces the search to a single simulation run; counts are required in this mode so the CLI knows how many copies to fix:
 
