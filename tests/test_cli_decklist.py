@@ -45,6 +45,7 @@ def test_decklist_defaults_to_pool(monkeypatch, tmp_path, capsys):
 
         class Dummy:
             average_score = 1.0
+            deck = {}
 
         return [Dummy()]
 
@@ -52,6 +53,9 @@ def test_decklist_defaults_to_pool(monkeypatch, tmp_path, capsys):
     monkeypatch.setattr(cli, "brute_force_decks", fake_brute_force)
     monkeypatch.setattr(cli, "rank_decks", fake_rank)
     monkeypatch.setattr(cli, "summary_string", lambda summary: "summary")
+    monkeypatch.setattr(cli, "example_simulation_trace", lambda deck, config: "trace")
+    monkeypatch.setattr(cli, "format_simulation_trace", lambda trace: "trace output")
+    monkeypatch.setattr(cli, "describe_card_rating", lambda card: "rating")
 
     argv = [
         "prog",
@@ -120,6 +124,7 @@ def test_decklist_accepts_names_only(monkeypatch, tmp_path):
     def fake_rank(decks, config, progress=None):
         class Dummy:
             average_score = 1.0
+            deck = {}
 
         return [Dummy()]
 
@@ -127,6 +132,9 @@ def test_decklist_accepts_names_only(monkeypatch, tmp_path):
     monkeypatch.setattr(cli, "brute_force_decks", fake_brute_force)
     monkeypatch.setattr(cli, "rank_decks", fake_rank)
     monkeypatch.setattr(cli, "summary_string", lambda summary: "summary")
+    monkeypatch.setattr(cli, "example_simulation_trace", lambda deck, config: "trace")
+    monkeypatch.setattr(cli, "format_simulation_trace", lambda trace: "trace output")
+    monkeypatch.setattr(cli, "describe_card_rating", lambda card: "rating")
 
     argv = [
         "prog",

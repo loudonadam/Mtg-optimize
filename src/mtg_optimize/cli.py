@@ -9,7 +9,13 @@ from typing import Any, Dict, List
 from .card import Card, CardChoice
 from .decklist import DecklistError, fetch_card_metadata, parse_decklist_lines
 from .search import DeckRules, SearchConfig, brute_force_decks, count_possible_decks, rank_decks
-from .simulator import SimulationConfig, summary_string
+from .simulator import (
+    SimulationConfig,
+    describe_card_rating,
+    example_simulation_trace,
+    format_simulation_trace,
+    summary_string,
+)
 
 BASIC_LANDS = {"Plains", "Island", "Swamp", "Mountain", "Forest", "Wastes"}
 
@@ -254,6 +260,41 @@ def main() -> None:
     for idx, summary in enumerate(summaries[: args.top], start=1):
         print(f"=== Deck {idx} ===")
         print(summary_string(summary))
+        print()
+
+        if hasattr(summary, "deck"):
+            example_trace = example_simulation_trace(summary.deck, search_config.simulation)
+            print("Example simulation:")
+            print(format_simulation_trace(example_trace))
+
+        if sys.stdin.isatty():
+            print(
+                "\nEnter a card name to see how it scores when cast (press Enter to skip):",
+                file=sys.stderr,
+            )
+            try:
+                card_name = input().strip()
+            except EOFError:
+                card_name = ""
+        else:
+            card_name = ""
+
+        if card_name:
+            deck_cards = getattr(summary, "deck", {})
+            card_lookup = next(
+                (card for card in getattr(deck_cards, "keys", lambda: [])() if card.name.lower() == card_name.lower()),
+                None,
+            )
+            if card_lookup is None:
+                try:
+                    card_lookup = fetch_card_metadata(card_name)
+                except Exception:
+                    card_lookup = None
+
+            if card_lookup is None:
+                print(f"No card named '{card_name}' could be found.")
+            else:
+                print(describe_card_rating(card_lookup))
         print()
 
 
