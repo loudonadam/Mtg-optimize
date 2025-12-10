@@ -8,7 +8,7 @@ from typing import Any, Dict, List
 
 from .card import Card, CardChoice
 from .decklist import DecklistError, fetch_card_metadata, parse_decklist_lines
-from .search import SearchConfig, brute_force_decks, rank_decks
+from .search import DeckRules, SearchConfig, brute_force_decks, count_possible_decks, rank_decks
 from .simulator import SimulationConfig, summary_string
 
 BASIC_LANDS = {"Plains", "Island", "Swamp", "Mountain", "Forest", "Wastes"}
@@ -17,6 +17,16 @@ BASIC_LANDS = {"Plains", "Island", "Swamp", "Mountain", "Forest", "Wastes"}
 def load_config(path: Path) -> Dict[str, Any]:
     with path.open() as f:
         return json.load(f)
+
+
+def load_rules(path: Path) -> DeckRules:
+    data = load_config(path)
+    return DeckRules(
+        min_lands=data.get("min_lands"),
+        max_lands=data.get("max_lands"),
+        min_creatures=data.get("min_creatures"),
+        max_creatures=data.get("max_creatures"),
+    )
 
 
 def progress_printer(stage: str):
@@ -36,6 +46,7 @@ def main() -> None:
     source.add_argument("--config", type=Path, help="Path to deck search JSON config")
     source.add_argument("--decklist", type=Path, help="Path to MTGO/Arena-style decklist text")
     parser.add_argument("--deck-size", type=int, default=None, help="Target deck size (default: 60)")
+    parser.add_argument("--rules", type=Path, help="Optional JSON file with deck construction rules")
     parser.add_argument(
         "--brute-limit",
         type=int,
@@ -64,15 +75,24 @@ def main() -> None:
     sim_games: int
     sim_turns: int
     seed = args.seed
+    rules: DeckRules | None = load_rules(args.rules) if args.rules else None
 
     if args.config:
         cfg = load_config(args.config)
         deck_size = args.deck_size or cfg.get("deck_size", 60)
-        brute_limit = args.brute_limit or cfg.get("brute_force_limit", 5000)
+        brute_limit = args.brute_limit or cfg.get("brute_force_limit")
         sim_games = args.games or cfg.get("games", 500)
         sim_turns = args.turns or cfg.get("turns", 6)
         if seed is None:
             seed = cfg.get("seed")
+        if rules is None and "deck_rules" in cfg:
+            rules_cfg = cfg.get("deck_rules", {})
+            rules = DeckRules(
+                min_lands=rules_cfg.get("min_lands"),
+                max_lands=rules_cfg.get("max_lands"),
+                min_creatures=rules_cfg.get("min_creatures"),
+                max_creatures=rules_cfg.get("max_creatures"),
+            )
 
         for entry in cfg["cards"]:
             card = Card(
@@ -80,6 +100,9 @@ def main() -> None:
                 type_line=entry.get("type", "spell"),
                 mana_cost=entry.get("mana_cost", 0),
                 colors=tuple(entry.get("colors", [])),
+                power=entry.get("power"),
+                toughness=entry.get("toughness"),
+                tags=tuple(entry.get("tags", [])),
             )
             choices.append(
                 CardChoice(
@@ -123,13 +146,43 @@ def main() -> None:
             if args.fixed_deck
             else 60
         )
-        brute_limit = args.brute_limit or (1 if args.fixed_deck else 5000)
+        brute_limit = args.brute_limit or (1 if args.fixed_deck else None)
         sim_games = args.games or 500
         sim_turns = args.turns or 6
+
+    deck_count = count_possible_decks(choices, deck_size, rules=rules)
+    total_possible = deck_count.total
+    if total_possible == 0:
+        raise SystemExit("No valid decks can be constructed with the supplied constraints")
+
+    if brute_limit is None:
+        suggested = min(5000, total_possible if total_possible else 5000)
+        estimate_note = " (estimated)" if deck_count.estimated else ""
+        print(
+            f"Found {total_possible}{estimate_note} valid deck combinations."
+            f" Simulate how many? [default: {suggested}]",
+            file=sys.stderr,
+        )
+        user_choice = ""
+        if sys.stdin.isatty():
+            try:
+                user_choice = input().strip()
+            except EOFError:
+                user_choice = ""
+        if user_choice:
+            try:
+                brute_limit = max(1, min(int(user_choice), total_possible))
+            except ValueError:
+                brute_limit = suggested
+        else:
+            brute_limit = suggested
+    else:
+        brute_limit = max(1, min(brute_limit, total_possible))
 
     search_config = SearchConfig(
         deck_size=deck_size,
         brute_force_limit=brute_limit,
+        deck_rules=rules,
         simulation=SimulationConfig(games=sim_games, turns=sim_turns, seed=seed),
     )
 

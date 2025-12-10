@@ -19,6 +19,12 @@ class Card:
         colors: Iterable of color symbols a spell requires or a land
             can produce (e.g. ``["G", "U"]``). For colorless spells
             or basic lands that produce colorless mana, leave empty.
+        power: Optional power value for creatures or threats that add
+            to battlefield pressure.
+        toughness: Optional toughness value for completeness; currently
+            informational only.
+        tags: Optional descriptors such as ``"removal"``, ``"counter"``,
+            ``"card_draw"``, or ``"finisher"`` that influence scoring.
         is_basic_land: True for basic lands (unlimited copies), False otherwise.
     """
 
@@ -26,11 +32,18 @@ class Card:
     type_line: str
     mana_cost: int = 0
     colors: Tuple[Color, ...] = field(default_factory=tuple)
+    power: int | None = None
+    toughness: int | None = None
+    tags: Tuple[str, ...] = field(default_factory=tuple)
     is_basic_land: bool = False
 
     @property
     def is_land(self) -> bool:
-        return self.type_line.lower() == "land"
+        return "land" in self.type_line.lower()
+
+    @property
+    def is_creature(self) -> bool:
+        return "creature" in self.type_line.lower()
 
 
 @dataclass(frozen=True)

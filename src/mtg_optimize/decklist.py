@@ -81,7 +81,7 @@ def fetch_card_metadata(name: str) -> Card:
 
     return Card(
         name=payload.get("name", name),
-        type_line="land" if is_land else "spell",
+        type_line=type_line or ("land" if is_land else "spell"),
         mana_cost=0 if is_land else mana_cost,
         colors=colors,
         is_basic_land=is_basic,
