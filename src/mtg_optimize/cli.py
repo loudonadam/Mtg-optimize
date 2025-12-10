@@ -1,0 +1,102 @@
+from __future__ import annotations
+
+import argparse
+import json
+from pathlib import Path
+from typing import Any, Dict, List
+
+from .card import Card, CardChoice
+from .decklist import DecklistError, fetch_card_metadata, parse_decklist_lines
+from .search import SearchConfig, brute_force_decks, rank_decks
+from .simulator import SimulationConfig, summary_string
+
+
+def load_config(path: Path) -> Dict[str, Any]:
+    with path.open() as f:
+        return json.load(f)
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Evaluate MTG Pauper deck candidates")
+    source = parser.add_mutually_exclusive_group(required=True)
+    source.add_argument("--config", type=Path, help="Path to deck search JSON config")
+    source.add_argument("--decklist", type=Path, help="Path to MTGO/Arena-style decklist text")
+    parser.add_argument(
+        "--top",
+        type=int,
+        default=3,
+        help="How many top decks to print (default: 3)",
+    )
+    parser.add_argument("--games", type=int, default=None, help="Override simulation game count")
+    parser.add_argument("--turns", type=int, default=None, help="Override simulation turn horizon")
+    parser.add_argument("--seed", type=int, default=None, help="RNG seed for deterministic runs")
+    args = parser.parse_args()
+
+    choices: List[CardChoice] = []
+    deck_size: int
+    brute_limit: int | None = None
+    sim_games: int
+    sim_turns: int
+    seed = args.seed
+
+    if args.config:
+        cfg = load_config(args.config)
+        deck_size = cfg.get("deck_size", 60)
+        brute_limit = cfg.get("brute_force_limit", 5000)
+        sim_games = args.games or cfg.get("games", 500)
+        sim_turns = args.turns or cfg.get("turns", 6)
+        if seed is None:
+            seed = cfg.get("seed")
+
+        for entry in cfg["cards"]:
+            card = Card(
+                name=entry["name"],
+                type_line=entry.get("type", "spell"),
+                mana_cost=entry.get("mana_cost", 0),
+                colors=tuple(entry.get("colors", [])),
+            )
+            choices.append(
+                CardChoice(
+                    card=card,
+                    min_count=entry.get("min", 0),
+                    max_count=entry.get("max", 4),
+                )
+            )
+    else:
+        assert args.decklist
+        try:
+            lines = args.decklist.read_text().splitlines()
+            deck_entries = parse_decklist_lines(lines)
+        except OSError as exc:  # pragma: no cover - CLI concerns
+            raise SystemExit(f"Failed to read decklist: {exc}") from exc
+        except DecklistError as exc:  # pragma: no cover - CLI concerns
+            raise SystemExit(str(exc)) from exc
+
+        for entry in deck_entries:
+            card = fetch_card_metadata(entry.name)
+            choices.append(CardChoice(card=card, min_count=entry.count, max_count=entry.count))
+
+        deck_size = sum(entry.count for entry in deck_entries)
+        brute_limit = 1
+        sim_games = args.games or 500
+        sim_turns = args.turns or 6
+
+    search_config = SearchConfig(
+        deck_size=deck_size,
+        brute_force_limit=brute_limit,
+        simulation=SimulationConfig(games=sim_games, turns=sim_turns, seed=seed),
+    )
+
+    decks = brute_force_decks(choices, search_config)
+    if not decks:
+        raise SystemExit("No valid decks found; adjust constraints or deck size")
+
+    summaries = rank_decks(decks, search_config)
+    for idx, summary in enumerate(summaries[: args.top], start=1):
+        print(f"=== Deck {idx} ===")
+        print(summary_string(summary))
+        print()
+
+
+if __name__ == "__main__":
+    main()
