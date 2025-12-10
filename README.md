@@ -77,3 +77,6 @@ PYTHONPATH=src python -m mtg_optimize.cli --decklist my_deck.txt --fixed-deck --
 - Colors are written using single-letter MTG symbols (`U`, `G`, `R`, `B`, `W`).
 - The simulator greedily casts the most expensive affordable spells each turn and plays one land per turn if available.
 - To experiment with only land distributions, keep spells fixed and widen the `min`/`max` range on land entries.
+
+## Further reading
+- [Resources for rules-aware Magic simulations](docs/resources.md): APIs, datasets, and open-source rules engines that can help model mana production and timing without reimplementing everything from scratch.
