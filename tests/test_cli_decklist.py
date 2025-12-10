@@ -24,13 +24,19 @@ def test_decklist_defaults_to_pool(monkeypatch, tmp_path, capsys):
 
     captured = {}
 
-    def fake_brute_force(choices, config):
+    def fake_brute_force(choices, config, progress=None):
         captured["choices"] = choices
         captured["config"] = config
+        captured["progress"] = progress
+        if progress:
+            progress(0, 1)
         return ["deck"]
 
-    def fake_rank(decks, config):
+    def fake_rank(decks, config, progress=None):
         captured["rank_config"] = config
+        captured["rank_progress"] = progress
+        if progress:
+            progress(1, 1)
 
         class Dummy:
             average_score = 1.0
@@ -69,6 +75,8 @@ def test_decklist_defaults_to_pool(monkeypatch, tmp_path, capsys):
 
     # rank_decks receives the same config object
     assert captured["rank_config"] is captured["config"]
+    assert callable(captured["progress"])
+    assert callable(captured["rank_progress"])
 
     # CLI output is produced
     out = capsys.readouterr().out

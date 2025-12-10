@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from pathlib import Path
 from typing import Any, Dict, List
 
@@ -14,6 +15,17 @@ from .simulator import SimulationConfig, summary_string
 def load_config(path: Path) -> Dict[str, Any]:
     with path.open() as f:
         return json.load(f)
+
+
+def progress_printer(stage: str):
+    def _printer(done: int, total: int) -> None:
+        if total:
+            pct = done / total * 100
+            print(f"[{stage}] {done}/{total} ({pct:.1f}%)", file=sys.stderr)
+        else:
+            print(f"[{stage}] {done} completed", file=sys.stderr)
+
+    return _printer
 
 
 def main() -> None:
@@ -107,11 +119,13 @@ def main() -> None:
         simulation=SimulationConfig(games=sim_games, turns=sim_turns, seed=seed),
     )
 
-    decks = brute_force_decks(choices, search_config)
+    deck_progress = progress_printer("Deck search")
+    decks = brute_force_decks(choices, search_config, progress=deck_progress)
     if not decks:
         raise SystemExit("No valid decks found; adjust constraints or deck size")
 
-    summaries = rank_decks(decks, search_config)
+    sim_progress = progress_printer("Simulations")
+    summaries = rank_decks(decks, search_config, progress=sim_progress)
     for idx, summary in enumerate(summaries[: args.top], start=1):
         print(f"=== Deck {idx} ===")
         print(summary_string(summary))

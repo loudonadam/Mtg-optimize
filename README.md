@@ -21,6 +21,7 @@ Running the CLI prints a numbered list of the best decks. Each entry shows:
 - **Spells cast / Mana spent**: How much action the deck produced in early turns.
 - **Color screw turns / Missed land drops**: Lower is better; indicates stumbling.
 - **Deck breakdown**: The exact counts chosen for each candidate card.
+- Progress messages are printed to stderr during long runs to show deck-search and simulation completion percentages.
 
 ## Quick start: explore a pool of options
 1. Create a JSON config similar to `example_config.json` where each card describes the **allowed range** of copies to try:
