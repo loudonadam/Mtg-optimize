@@ -183,23 +183,7 @@ def main() -> None:
     if rules is None:
         default_rules_path = Path("deck_rules.json")
         if default_rules_path.exists():
-            candidate_rules = load_rules(default_rules_path)
-            max_lands_possible = sum(
-                choice.max_count for choice in choices if choice.card.is_land
-            )
-            max_creatures_possible = sum(
-                choice.max_count for choice in choices if choice.card.is_creature
-            )
-            rules_fit = (
-                (candidate_rules.min_lands is None or max_lands_possible >= candidate_rules.min_lands)
-                and (
-                    candidate_rules.min_creatures is None
-                    or max_creatures_possible >= candidate_rules.min_creatures
-                )
-                and (candidate_rules.min_lands is None or deck_size >= candidate_rules.min_lands)
-            )
-            if rules_fit:
-                rules = candidate_rules
+            rules = load_rules(default_rules_path)
 
     deck_count = count_possible_decks(choices, deck_size, rules=rules)
     total_possible = deck_count.total

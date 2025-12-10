@@ -1,3 +1,4 @@
+import json
 import sys
 from pathlib import Path
 
@@ -13,6 +14,9 @@ def test_decklist_defaults_to_pool(monkeypatch, tmp_path, capsys):
     deck_text = "4 Test Spell\n6 Forest\n"
     deck_path = tmp_path / "deck.txt"
     deck_path.write_text(deck_text)
+
+    rules_path = tmp_path / "rules.json"
+    rules_path.write_text("{}")
 
     def fake_fetch_card(name):
         return Card(
@@ -53,6 +57,8 @@ def test_decklist_defaults_to_pool(monkeypatch, tmp_path, capsys):
         "prog",
         "--decklist",
         str(deck_path),
+        "--rules",
+        str(rules_path),
         "--deck-size",
         "10",
         "--games",
@@ -61,6 +67,7 @@ def test_decklist_defaults_to_pool(monkeypatch, tmp_path, capsys):
         "1",
     ]
     monkeypatch.setattr(sys, "argv", argv)
+    monkeypatch.chdir(tmp_path)
 
     cli.main()
 
@@ -92,6 +99,9 @@ def test_decklist_accepts_names_only(monkeypatch, tmp_path):
     deck_path = tmp_path / "deck.txt"
     deck_path.write_text(deck_text)
 
+    rules_path = tmp_path / "rules.json"
+    rules_path.write_text("{}")
+
     def fake_fetch_card(name):
         return Card(
             name=name,
@@ -122,10 +132,13 @@ def test_decklist_accepts_names_only(monkeypatch, tmp_path):
         "prog",
         "--decklist",
         str(deck_path),
+        "--rules",
+        str(rules_path),
         "--deck-size",
         "70",
     ]
     monkeypatch.setattr(sys, "argv", argv)
+    monkeypatch.chdir(tmp_path)
 
     cli.main()
 
@@ -136,3 +149,35 @@ def test_decklist_accepts_names_only(monkeypatch, tmp_path):
     assert spell.max_count == 4  # names-only spells default to four-of cap
     assert basic.max_count == 70  # basic lands can fill the deck
     assert non_basic.max_count == 4  # non-basic lands still respect four-of rule
+
+
+def test_default_rules_are_enforced(monkeypatch, tmp_path):
+    deck_text = "4 Test Spell\n"
+    deck_path = tmp_path / "deck.txt"
+    deck_path.write_text(deck_text)
+
+    deck_rules = tmp_path / "deck_rules.json"
+    deck_rules.write_text(json.dumps({"min_lands": 2}))
+
+    def fake_fetch_card(name):
+        return Card(
+            name=name,
+            type_line="sorcery",
+            mana_cost=1,
+            colors=("G",),
+            impact_score=1.0,
+        )
+
+    monkeypatch.setattr(cli, "fetch_card_metadata", fake_fetch_card)
+    monkeypatch.chdir(tmp_path)
+    argv = [
+        "prog",
+        "--decklist",
+        str(deck_path),
+        "--deck-size",
+        "4",
+    ]
+    monkeypatch.setattr(sys, "argv", argv)
+
+    with pytest.raises(SystemExit, match="No valid decks can be constructed"):
+        cli.main()
