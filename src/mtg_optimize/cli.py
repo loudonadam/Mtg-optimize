@@ -40,6 +40,23 @@ def progress_printer(stage: str):
     return _printer
 
 
+def abbreviate(value: int) -> str:
+    for unit in ("", "K", "M", "B", "T"):
+        if abs(value) < 1000:
+            return f"{value}{unit}"
+        value = value / 1000
+    return f"{value:.1f}P"
+
+
+def render_deck_count(deck_count: DeckCount) -> str:
+    lower = deck_count.lower_bound or deck_count.total
+    upper = deck_count.upper_bound or deck_count.total
+    estimate_note = " (estimated)" if deck_count.estimated else ""
+    if lower == upper:
+        return f"{abbreviate(lower)}{estimate_note}"
+    return f"{abbreviate(lower)}-{abbreviate(upper)}{estimate_note}"
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Evaluate MTG Pauper deck candidates")
     source = parser.add_mutually_exclusive_group(required=True)
@@ -102,6 +119,7 @@ def main() -> None:
                 colors=tuple(entry.get("colors", [])),
                 power=entry.get("power"),
                 toughness=entry.get("toughness"),
+                impact_score=entry.get("impact_score", 0.0),
                 tags=tuple(entry.get("tags", [])),
             )
             choices.append(
@@ -127,6 +145,18 @@ def main() -> None:
                 raise SystemExit("Counts are required for --fixed-deck decklists")
 
             card = fetch_card_metadata(entry.name)
+            if entry.impact_score:
+                card = Card(
+                    name=card.name,
+                    type_line=card.type_line,
+                    mana_cost=card.mana_cost,
+                    colors=card.colors,
+                    power=card.power,
+                    toughness=card.toughness,
+                    impact_score=entry.impact_score,
+                    tags=card.tags,
+                    is_basic_land=card.is_basic_land,
+                )
             is_basic = card.is_basic_land or card.name in BASIC_LANDS
             if args.fixed_deck:
                 min_count = entry.count
@@ -152,14 +182,14 @@ def main() -> None:
 
     deck_count = count_possible_decks(choices, deck_size, rules=rules)
     total_possible = deck_count.total
+    deck_count_label = render_deck_count(deck_count)
     if total_possible == 0:
         raise SystemExit("No valid decks can be constructed with the supplied constraints")
 
     if brute_limit is None:
         suggested = min(5000, total_possible if total_possible else 5000)
-        estimate_note = " (estimated)" if deck_count.estimated else ""
         print(
-            f"Found {total_possible}{estimate_note} valid deck combinations."
+            f"Found {deck_count_label} valid deck combinations."
             f" Simulate how many? [default: {suggested}]",
             file=sys.stderr,
         )

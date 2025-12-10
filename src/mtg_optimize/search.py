@@ -21,6 +21,8 @@ class SearchConfig:
 class DeckCount:
     total: int
     estimated: bool = False
+    lower_bound: int | None = None
+    upper_bound: int | None = None
 
 
 @dataclass
@@ -73,7 +75,16 @@ def count_possible_decks(
                     if next_ways[total] > estimate_cutoff:
                         next_ways[total] = estimate_cutoff
             ways = next_ways
-        return DeckCount(total=ways[deck_size], estimated=ways[deck_size] >= estimate_cutoff)
+        total = ways[deck_size]
+        estimated = total >= estimate_cutoff
+        lower_bound = estimate_cutoff if estimated else total
+        upper_bound = total + estimate_cutoff if estimated else total
+        return DeckCount(
+            total=total,
+            estimated=estimated,
+            lower_bound=lower_bound,
+            upper_bound=upper_bound,
+        )
 
     min_lands = rules.min_lands or 0
     max_lands = rules.max_lands or deck_size
@@ -113,7 +124,14 @@ def count_possible_decks(
         return total
 
     total = helper(0, deck_size, 0, 0)
-    return DeckCount(total=total, estimated=estimated)
+    lower_bound = estimate_cutoff if estimated else total
+    upper_bound = total + estimate_cutoff if estimated else total
+    return DeckCount(
+        total=total,
+        estimated=estimated,
+        lower_bound=lower_bound,
+        upper_bound=upper_bound,
+    )
 
 
 def brute_force_decks(
@@ -253,6 +271,15 @@ def rank_decks(
     """Evaluate and sort decks by average score."""
 
     deck_list = list(decks)
+    rules = config.deck_rules
+    if rules is not None:
+        filtered: List[DeckList] = []
+        for deck in deck_list:
+            lands = sum(count for card, count in deck.items() if card.is_land)
+            creatures = sum(count for card, count in deck.items() if card.is_creature)
+            if rules.validate(lands, creatures):
+                filtered.append(deck)
+        deck_list = filtered
     total = len(deck_list)
     processed = 0
 

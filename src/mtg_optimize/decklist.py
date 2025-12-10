@@ -15,6 +15,7 @@ from .card import Card
 class DecklistEntry:
     name: str
     count: Optional[int]
+    impact_score: float = 0.0
 
 
 class DecklistError(RuntimeError):
@@ -22,6 +23,26 @@ class DecklistError(RuntimeError):
 
 
 DECKLIST_LINE = re.compile(r"^(?:(?P<count>\d+)\s+)?(?P<name>.+)$")
+
+
+def _parse_line(line: str) -> tuple[str, Optional[int], float]:
+    """Parse a single decklist line with optional impact score."""
+
+    if ";" in line:
+        card_part, impact_part = line.split(";", 1)
+        try:
+            impact_score = float(impact_part.strip() or 0)
+        except ValueError:
+            raise DecklistError(f"Invalid impact score in decklist line: {line!r}")
+    else:
+        card_part = line
+        impact_score = 0.0
+
+    match = DECKLIST_LINE.match(card_part)
+    if not match:
+        raise DecklistError(f"Could not parse decklist line: {line!r}")
+    count = match.group("count")
+    return match.group("name"), int(count) if count else None, impact_score
 
 
 def parse_decklist_lines(lines: Iterable[str]) -> List[DecklistEntry]:
@@ -40,11 +61,8 @@ def parse_decklist_lines(lines: Iterable[str]) -> List[DecklistEntry]:
             continue
         if line.startswith("SB:"):
             line = line[3:].strip()
-        match = DECKLIST_LINE.match(line)
-        if not match:
-            raise DecklistError(f"Could not parse decklist line: {raw!r}")
-        count = match.group("count")
-        entries.append(DecklistEntry(name=match.group("name"), count=int(count) if count else None))
+        name, count, impact_score = _parse_line(line)
+        entries.append(DecklistEntry(name=name, count=count, impact_score=impact_score))
     return entries
 
 

@@ -23,6 +23,8 @@ class Card:
             to battlefield pressure.
         toughness: Optional toughness value for completeness; currently
             informational only.
+        impact_score: User-provided bump to represent utility beyond
+            vanilla stats (e.g., vigilance or spell utility).
         tags: Optional descriptors such as ``"removal"``, ``"counter"``,
             ``"card_draw"``, or ``"finisher"`` that influence scoring.
         is_basic_land: True for basic lands (unlimited copies), False otherwise.
@@ -34,6 +36,7 @@ class Card:
     colors: Tuple[Color, ...] = field(default_factory=tuple)
     power: int | None = None
     toughness: int | None = None
+    impact_score: float = 0.0
     tags: Tuple[str, ...] = field(default_factory=tuple)
     is_basic_land: bool = False
 

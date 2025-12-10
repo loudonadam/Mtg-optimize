@@ -11,7 +11,8 @@ from .card import Card, DeckList, deck_size, flatten_deck
 class GameResult:
     spells_cast: int
     mana_spent: int
-    total_board_power: int
+    total_board_impact: float
+    spell_impact: float
     interaction_spells: int
     counterspells: int
     card_draw_spells: int
@@ -29,10 +30,11 @@ class GameResult:
 
         penalties = self.color_screw_turns * 0.5 + self.land_drops_missed * 0.25
         proactive = self.spells_cast * 1.2 + self.mana_spent * 0.1
-        board_pressure = self.total_board_power * 0.3 + self.finishers * 1.5
+        board_pressure = self.total_board_impact * 0.25 + self.finishers * 1.5
+        impact = self.spell_impact * 0.6
         interaction = self.interaction_spells * 0.9 + self.counterspells * 0.7
         resilience = self.card_draw_spells * 0.8
-        return proactive + board_pressure + interaction + resilience - penalties
+        return proactive + board_pressure + impact + interaction + resilience - penalties
 
 
 @dataclass
@@ -48,7 +50,8 @@ class SimulationSummary:
     average_score: float
     average_spells_cast: float
     average_mana_spent: float
-    average_board_power: float
+    average_board_impact: float
+    average_spell_impact: float
     average_interaction: float
     average_counters: float
     average_card_draw: float
@@ -70,7 +73,8 @@ class DrawSimulator:
         battlefield: List[Card] = []
         spells_cast = 0
         mana_spent = 0
-        total_board_power = 0
+        total_board_impact = 0.0
+        spell_impact = 0.0
         interaction_spells = 0
         counterspells = 0
         card_draw_spells = 0
@@ -129,6 +133,14 @@ class DrawSimulator:
                 casted_indices.append(idx)
                 battlefield.append(card)
 
+                if card.impact_score:
+                    if card.is_creature:
+                        # Count creature impact while they stay on the battlefield
+                        # as part of the board impact accumulation below.
+                        pass
+                    else:
+                        spell_impact += card.impact_score
+
                 if "removal" in card.tags:
                     interaction_spells += 1
                 if "counter" in card.tags:
@@ -141,8 +153,14 @@ class DrawSimulator:
             for idx in sorted(casted_indices, reverse=True):
                 hand.pop(idx)
 
-            board_power = sum(card.power or 0 for card in battlefield if not card.is_land)
-            total_board_power += board_power
+            board_impact = sum(
+                (card.power or 0)
+                + (card.toughness or 0)
+                + (card.impact_score if card.is_creature else 0)
+                for card in battlefield
+                if not card.is_land
+            )
+            total_board_impact += board_impact
 
             if castable_indices and not spells_cast_this_turn:
                 color_screw_turns += 1
@@ -152,7 +170,8 @@ class DrawSimulator:
         return GameResult(
             spells_cast=spells_cast,
             mana_spent=mana_spent,
-            total_board_power=total_board_power,
+            total_board_impact=total_board_impact,
+            spell_impact=spell_impact,
             interaction_spells=interaction_spells,
             counterspells=counterspells,
             card_draw_spells=card_draw_spells,
@@ -178,7 +197,8 @@ def simulate_deck(deck: DeckList, config: SimulationConfig) -> SimulationSummary
         average_score=avg("score"),
         average_spells_cast=avg("spells_cast"),
         average_mana_spent=avg("mana_spent"),
-        average_board_power=avg("total_board_power"),
+        average_board_impact=avg("total_board_impact"),
+        average_spell_impact=avg("spell_impact"),
         average_interaction=avg("interaction_spells"),
         average_counters=avg("counterspells"),
         average_card_draw=avg("card_draw_spells"),
@@ -193,7 +213,8 @@ def summary_string(summary: SimulationSummary) -> str:
         f"Avg score: {summary.average_score:.2f}",
         f"Spells cast: {summary.average_spells_cast:.2f}",
         f"Mana spent: {summary.average_mana_spent:.2f}",
-        f"Board power: {summary.average_board_power:.2f}",
+        f"Board impact (pow+tough+impact): {summary.average_board_impact:.2f}",
+        f"Spell impact: {summary.average_spell_impact:.2f}",
         f"Interaction: {summary.average_interaction:.2f} (counters {summary.average_counters:.2f})",
         f"Card draw: {summary.average_card_draw:.2f}",
         f"Finishers: {summary.average_finishers:.2f}",
