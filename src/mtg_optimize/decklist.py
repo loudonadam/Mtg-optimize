@@ -121,9 +121,22 @@ def fetch_card_metadata(name: str) -> Card:
     except (TypeError, ValueError):
         mana_cost = 0
 
+    oracle_text = (payload.get("oracle_text", "") or "").lower()
     produced_mana = tuple(payload.get("produced_mana", []) if is_land else [])
-    oracle_text = payload.get("oracle_text", "") or ""
-    enters_tapped = is_land and "enters the battlefield tapped" in oracle_text.lower()
+
+    # Some utility lands (e.g., Thriving cycle) require choosing a color or
+    # claim "any color" in the rules text without Scryfall enumerating every
+    # option. Expand the produced mana to all five colors in those cases so the
+    # simulator can satisfy colored costs realistically.
+    if is_land and not produced_mana:
+        if "add one mana of any color" in oracle_text or "add one mana of any colour" in oracle_text:
+            produced_mana = ("W", "U", "B", "R", "G")
+        elif "chosen color" in oracle_text or "choose a color" in oracle_text:
+            produced_mana = ("W", "U", "B", "R", "G")
+
+    enters_tapped = is_land and (
+        "enters the battlefield tapped" in oracle_text or "enters tapped" in oracle_text
+    )
 
     return Card(
         name=payload.get("name", name),

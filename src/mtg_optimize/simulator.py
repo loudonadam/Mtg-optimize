@@ -117,10 +117,6 @@ class DrawSimulator:
         opening_hand = list(hand)
 
         for _turn in range(1, turns + 1):
-            # Untap step
-            for land in lands_in_play:
-                land.tapped = False
-
             turn_actions: list[str] = []
             spells_cast_this_turn = 0
             mana_spent_this_turn = 0
