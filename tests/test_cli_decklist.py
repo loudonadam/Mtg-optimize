@@ -53,6 +53,8 @@ def test_decklist_defaults_to_pool(monkeypatch, tmp_path, capsys):
         "prog",
         "--decklist",
         str(deck_path),
+        "--deck-size",
+        "10",
         "--games",
         "1",
         "--turns",
@@ -71,8 +73,8 @@ def test_decklist_defaults_to_pool(monkeypatch, tmp_path, capsys):
     assert land_choice.min_count == 0
     assert land_choice.max_count == 6
 
-    assert captured["config"].deck_size == 60
-    assert captured["config"].brute_force_limit == 5000
+    assert captured["config"].deck_size == 10
+    assert captured["config"].brute_force_limit == 1
 
     # rank_decks receives the same config object
     assert captured["rank_config"] is captured["config"]

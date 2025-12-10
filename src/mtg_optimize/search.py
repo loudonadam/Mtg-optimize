@@ -15,6 +15,44 @@ class SearchConfig:
     simulation: SimulationConfig = field(default_factory=SimulationConfig)
 
 
+def count_possible_decks(choices: Sequence[CardChoice], deck_size: int) -> int:
+    """Return the total number of distinct decks that satisfy the constraints."""
+
+    total_cards = len(choices)
+    min_suffix: List[int] = [0] * (total_cards + 1)
+    max_suffix: List[int] = [0] * (total_cards + 1)
+    for idx in range(total_cards - 1, -1, -1):
+        min_suffix[idx] = min_suffix[idx + 1] + choices[idx].min_count
+        max_suffix[idx] = max_suffix[idx + 1] + choices[idx].max_count
+
+    count = 0
+
+    def backtrack(slot: int, remaining: int) -> None:
+        nonlocal count
+
+        if remaining < min_suffix[slot] or remaining > max_suffix[slot]:
+            return
+
+        if slot == total_cards:
+            if remaining == 0:
+                count += 1
+            return
+
+        choice = choices[slot]
+        min_next = min_suffix[slot + 1]
+        max_next = max_suffix[slot + 1]
+        max_allowed = min(choice.max_count, remaining - min_next)
+
+        for value in range(choice.min_count, max_allowed + 1):
+            next_remaining = remaining - value
+            if next_remaining > max_next:
+                continue
+            backtrack(slot + 1, next_remaining)
+
+    backtrack(0, deck_size)
+    return count
+
+
 def brute_force_decks(
     choices: Sequence[CardChoice],
     config: SearchConfig,

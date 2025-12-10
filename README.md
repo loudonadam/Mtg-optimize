@@ -5,7 +5,7 @@ A small toolkit that can brute-force and simulate Magic: The Gathering decklists
 ## Features
 - Define a pool of candidate cards and allowed counts.
 - Brute-force valid decklists (bounded by a configurable limit) to explore land ratios and spell suites.
-- Monte Carlo draw simulations of the first N turns, scoring decks by spells cast, mana spent, land drops, and color screw frequency.
+- Monte Carlo draw simulations of the first N turns, scoring decks by spells cast, mana spent, board pressure (power), interaction (removal/counters), card draw, land drops, and color screw frequency.
 - CLI to rank the best-performing decks.
 - Import MTGO/Arena-style text decklists and auto-fill card details using the public Scryfall API.
 
@@ -19,6 +19,7 @@ Running the CLI prints a numbered list of the best decks. Each entry shows:
 
 - **Avg score**: Composite fitness value (higher is better).
 - **Spells cast / Mana spent**: How much action the deck produced in early turns.
+- **Board pressure / Interaction / Card draw / Finishers**: High-impact plays beyond just curving out.
 - **Color screw turns / Missed land drops**: Lower is better; indicates stumbling.
 - **Deck breakdown**: The exact counts chosen for each candidate card.
 - Progress messages are printed to stderr during long runs to show deck-search and simulation completion percentages.
@@ -26,9 +27,9 @@ Running the CLI prints a numbered list of the best decks. Each entry shows:
 ## Quick start: explore a pool of options
 1. Create a JSON config similar to `example_config.json` where each card describes the **allowed range** of copies to try:
    - `deck_size`: Target deck size (60 by default).
-   - `brute_force_limit`: Maximum number of combinations to examine before stopping. Keep this modest if you list many cards with wide `min`/`max` ranges.
+   - `brute_force_limit`: Optional maximum number of combinations to examine before stopping. If omitted, the CLI will compute the full search space, then let you choose how many decks to simulate (defaulting to 5,000 or the full count if smaller).
    - `games` / `turns`: How many simulations to run per deck and how many turns to play out.
-   - `cards`: Candidate cards with `name`, `type` (`"land"` or `"spell"`), `mana_cost`, `colors`, and `min`/`max` copies. Non-land cards should keep `max` at 4 to follow format rules; raise land `max` as needed to let the search engine try many mana bases.
+   - `cards`: Candidate cards with `name`, `type` (`"land"` or `"spell"`), `mana_cost`, `colors`, `min`/`max` copies, and optional `power`, `toughness`, and `tags` (e.g., `"removal"`, `"counter"`, `"card_draw"`, `"finisher"`) to weight advanced gameplay metrics. Non-land cards should keep `max` at 4 to follow format rules; raise land `max` as needed to let the search engine try many mana bases.
 2. Run the CLI (from the repository root):
    ```bash
    PYTHONPATH=src python -m mtg_optimize.cli --config example_config.json --top 3
