@@ -4,7 +4,7 @@ import random
 from dataclasses import dataclass
 from typing import Counter, Iterable, List, Mapping, MutableMapping, Sequence
 
-from .card import Card, DeckList, color_string, deck_size, flatten_deck
+from .card import Card, DeckList, deck_size, flatten_deck
 
 
 @dataclass
@@ -146,9 +146,8 @@ def summary_string(summary: SimulationSummary) -> str:
         "Deck:",
     ]
     for card, count in summary.deck.items():
-        lines.append(
-            f"  {count}x {card.name} ({card.type_line}, cost={card.mana_cost}, colors={color_string(card.colors)})"
-        )
+        if count > 0:
+            lines.append(f"{count} {card.name}")
     return "\n".join(lines)
 
 

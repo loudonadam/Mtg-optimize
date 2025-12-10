@@ -72,7 +72,7 @@ def fetch_card_metadata(name: str) -> Card:
     lowered_type = type_line.lower()
     is_land = "land" in lowered_type
     is_basic = is_land and "basic" in lowered_type
-    colors = tuple(payload.get("colors", []))
+    colors = tuple(payload.get("color_identity") or payload.get("colors", []))
     cmc = payload.get("cmc", 0)
     try:
         mana_cost = int(round(float(cmc)))
