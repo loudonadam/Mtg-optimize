@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import time
+import random
 from dataclasses import dataclass, field
 from functools import lru_cache
 from typing import Callable, Iterable, List, Sequence
@@ -146,7 +147,10 @@ def brute_force_decks(
     """
 
     decks: List[DeckList] = []
-    total_cards = len(choices)
+    rng = random.Random(config.simulation.seed)
+    shuffled_choices = list(choices)
+    rng.shuffle(shuffled_choices)
+    total_cards = len(shuffled_choices)
 
     # Precompute suffix bounds to prune impossible branches quickly.
     min_suffix: List[int] = [0] * (total_cards + 1)
@@ -156,7 +160,7 @@ def brute_force_decks(
     creature_min_suffix: List[int] = [0] * (total_cards + 1)
     creature_max_suffix: List[int] = [0] * (total_cards + 1)
     for idx in range(total_cards - 1, -1, -1):
-        choice = choices[idx]
+        choice = shuffled_choices[idx]
         min_suffix[idx] = min_suffix[idx + 1] + choice.min_count
         max_suffix[idx] = max_suffix[idx + 1] + choice.max_count
         if choice.card.is_land:
@@ -230,17 +234,19 @@ def brute_force_decks(
             if remaining == 0 and (rules is None or rules.validate(lands, creatures)):
                 deck: DeckList = DeckList()
                 for idx, count in enumerate(chosen):
-                    deck[choices[idx].card] = count
+                    deck[shuffled_choices[idx].card] = count
                 decks.append(deck)
                 counter += 1
                 report()
             return
 
-        choice = choices[slot]
+        choice = shuffled_choices[slot]
         min_next = min_suffix[slot + 1]
         max_next = max_suffix[slot + 1]
         max_allowed = min(choice.max_count, remaining - min_next)
-        for count in range(choice.min_count, max_allowed + 1):
+        counts = list(range(choice.min_count, max_allowed + 1))
+        rng.shuffle(counts)
+        for count in counts:
             next_remaining = remaining - count
             if next_remaining > max_next:
                 continue
