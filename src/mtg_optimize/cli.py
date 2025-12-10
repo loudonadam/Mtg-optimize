@@ -29,6 +29,27 @@ def load_rules(path: Path) -> DeckRules:
     )
 
 
+def _default_rule_candidates(deck_source: Path | None) -> List[Path]:
+    project_root = Path(__file__).resolve().parents[2]
+    candidates: List[Path] = []
+    if deck_source is not None:
+        candidates.append(deck_source.parent / "deck_rules.json")
+    candidates.append(Path("deck_rules.json"))
+    candidates.append(project_root / "deck_rules.json")
+    return candidates
+
+
+def _load_first_existing_rule(candidates: List[Path]) -> DeckRules | None:
+    seen: set[Path] = set()
+    for path in candidates:
+        if path in seen:
+            continue
+        seen.add(path)
+        if path.exists():
+            return load_rules(path)
+    return None
+
+
 def progress_printer(stage: str):
     def _printer(done: int, total: int) -> None:
         if total:
@@ -94,8 +115,11 @@ def main() -> None:
     seed = args.seed
     rules: DeckRules | None = load_rules(args.rules) if args.rules else None
 
+    deck_source: Path | None = None
+
     if args.config:
         cfg = load_config(args.config)
+        deck_source = args.config
         deck_size = args.deck_size or cfg.get("deck_size", 60)
         brute_limit = args.brute_limit or cfg.get("brute_force_limit")
         sim_games = args.games or cfg.get("games", 500)
@@ -131,6 +155,7 @@ def main() -> None:
             )
     else:
         assert args.decklist
+        deck_source = args.decklist
         default_deck_size = args.deck_size or 60
         try:
             lines = args.decklist.read_text().splitlines()
@@ -181,9 +206,7 @@ def main() -> None:
         sim_turns = args.turns or 6
 
     if rules is None:
-        default_rules_path = Path("deck_rules.json")
-        if default_rules_path.exists():
-            rules = load_rules(default_rules_path)
+        rules = _load_first_existing_rule(_default_rule_candidates(deck_source))
 
     deck_count = count_possible_decks(choices, deck_size, rules=rules)
     total_possible = deck_count.total

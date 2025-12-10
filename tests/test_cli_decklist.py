@@ -181,3 +181,38 @@ def test_default_rules_are_enforced(monkeypatch, tmp_path):
 
     with pytest.raises(SystemExit, match="No valid decks can be constructed"):
         cli.main()
+
+
+def test_decklist_loads_rules_from_source_directory(monkeypatch, tmp_path):
+    deck_dir = tmp_path / "deck_data"
+    run_dir = tmp_path / "runner"
+    deck_dir.mkdir()
+    run_dir.mkdir()
+
+    deck_path = deck_dir / "deck.txt"
+    deck_path.write_text("4 Test Spell\n")
+
+    deck_rules = deck_dir / "deck_rules.json"
+    deck_rules.write_text(json.dumps({"min_lands": 2}))
+
+    def fake_fetch_card(name):
+        return Card(
+            name=name,
+            type_line="sorcery",
+            mana_cost=1,
+            colors=("G",),
+        )
+
+    monkeypatch.setattr(cli, "fetch_card_metadata", fake_fetch_card)
+    monkeypatch.chdir(run_dir)
+    argv = [
+        "prog",
+        "--decklist",
+        str(deck_path),
+        "--deck-size",
+        "4",
+    ]
+    monkeypatch.setattr(sys, "argv", argv)
+
+    with pytest.raises(SystemExit, match="No valid decks can be constructed"):
+        cli.main()
