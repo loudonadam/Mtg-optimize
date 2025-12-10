@@ -178,10 +178,13 @@ class DrawSimulator:
             for idx in cast_plan:
                 card = hand[idx]
                 if _should_hold_until_creature(card, battlefield):
-                    if capture_trace:
-                        turn_actions.append(
-                            f"Held {card.name} until a creature is on the battlefield"
-                        )
+                    if _can_pay_for_spell(card, lands_in_play):
+                        spell_impact -= 3
+                        spell_impact_this_turn -= 3
+                        if capture_trace:
+                            turn_actions.append(
+                                f"Held {card.name} until a creature is on the battlefield"
+                            )
                     continue
                 payment = _pay_for_spell(card, lands_in_play)
                 if payment is None:

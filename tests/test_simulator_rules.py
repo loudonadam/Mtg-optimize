@@ -147,6 +147,7 @@ def test_buffs_cast_after_creature_hits_battlefield():
 
     # Turn 1: pump spell is held because no creatures are on the battlefield yet
     assert trace.turns[0].spells_cast == 1
+    assert trace.turns[0].spell_impact == -3
     assert any(
         "Held Shape the Sands until a creature is on the battlefield"
         in action
@@ -155,3 +156,27 @@ def test_buffs_cast_after_creature_hits_battlefield():
 
     # Turn 2: with a creature now in play, the pump spell can be cast
     assert trace.turns[1].spells_cast == 1
+
+
+def test_holding_spells_only_logged_when_castable():
+    land = Card(name="Forest", type_line="Land", produced_mana=("G",))
+    pump_spell = Card(
+        name="Titanic Growth",
+        type_line="Instant",
+        mana_cost=2,
+        mana_cost_symbols=("G",),
+        generic_cost=1,
+        colors=("G",),
+    )
+
+    deck = {land: 7, pump_spell: 2}
+    simulator = DrawSimulator(deck, _StaticRng())
+    trace = simulator.simulate_with_trace(turns=1)
+
+    # With only one land available, the pump spell is not yet castable, so we do not log holding it
+    assert trace.turns[0].spells_cast == 0
+    assert trace.turns[0].spell_impact == 0
+    assert not any(
+        "Held Titanic Growth until a creature is on the battlefield" in action
+        for action in trace.turns[0].actions
+    )
