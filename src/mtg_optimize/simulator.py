@@ -90,6 +90,21 @@ class SimulationTrace:
     result: GameResult
 
 
+def _should_hold_until_creature(card: Card, battlefield: Sequence[Card]) -> bool:
+    """Delay casting non-interaction spells until a creature is present.
+
+    Utility spells such as combat tricks often have little value without
+    creatures on the battlefield. Only counterspells or card draw effects are
+    exempt from this rule.
+    """
+
+    if card.is_land or card.is_creature:
+        return False
+    if "counter" in card.tags or "card_draw" in card.tags or "removal" in card.tags:
+        return False
+    return not any(permanent.is_creature for permanent in battlefield)
+
+
 class DrawSimulator:
     def __init__(self, deck: DeckList, rng: random.Random):
         self.deck = deck
@@ -162,6 +177,12 @@ class DrawSimulator:
 
             for idx in cast_plan:
                 card = hand[idx]
+                if _should_hold_until_creature(card, battlefield):
+                    if capture_trace:
+                        turn_actions.append(
+                            f"Held {card.name} until a creature is on the battlefield"
+                        )
+                    continue
                 payment = _pay_for_spell(card, lands_in_play)
                 if payment is None:
                     continue
