@@ -1,3 +1,5 @@
+from collections import Counter
+
 from mtg_optimize.card import Card
 from mtg_optimize.simulator import DrawSimulator, LandPermanent, _can_pay_for_spell, _pay_for_spell
 
@@ -180,3 +182,42 @@ def test_holding_spells_only_logged_when_castable():
         "Held Titanic Growth until a creature is on the battlefield" in action
         for action in trace.turns[0].actions
     )
+
+
+def test_colors_are_used_when_mana_symbols_missing():
+    island = Card(name="Island", type_line="Land", colors=("U",))
+    green_creature = Card(
+        name="Turtle-Duck",
+        type_line="Creature",
+        mana_cost=1,
+        colors=("G",),
+        power=1,
+        toughness=1,
+    )
+
+    deck = Counter()
+    deck[green_creature] = 5
+    deck[island] = 5
+
+    simulator = DrawSimulator(deck, _StaticRng())
+    trace = simulator.simulate_with_trace(turns=1)
+
+    assert trace.turns[0].spells_cast == 0
+    assert trace.turns[0].color_screw is True
+    assert all("Cast Turtle-Duck" not in action for action in trace.turns[0].actions)
+
+
+def test_land_colors_allow_casting_without_produced_mana_field():
+    forest = Card(name="Forest", type_line="Land", colors=("G",))
+    creature = Card(name="Warden of the Woods", type_line="Creature", mana_cost=2, colors=("G", "G"))
+
+    deck = Counter()
+    deck[creature] = 5
+    deck[forest] = 5
+
+    simulator = DrawSimulator(deck, _StaticRng())
+    trace = simulator.simulate_with_trace(turns=2)
+
+    assert trace.turns[0].spells_cast == 0
+    assert trace.turns[1].spells_cast == 1
+    assert any("Tapped Forest for G mana" in action for action in trace.turns[1].actions)

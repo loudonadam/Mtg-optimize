@@ -518,18 +518,26 @@ def _land_priority(card: Card) -> tuple[int, int]:
 def _cost_requirements(card: Card) -> tuple[list[frozenset[str]], int]:
     requirements: list[frozenset[str]] = []
     generic_cost = card.generic_cost
-    for symbol in card.mana_cost_symbols:
+
+    symbols = card.mana_cost_symbols or card.colors
+    for symbol in symbols:
         if symbol == "C":
             requirements.append(frozenset({"C"}))
         else:
             requirements.append(frozenset({symbol}))
-    if not requirements and generic_cost == 0 and card.mana_cost:
-        generic_cost = card.mana_cost
+
+    if not requirements:
+        generic_cost = card.mana_cost if generic_cost == 0 else generic_cost
+    else:
+        remaining = card.mana_cost - len(requirements)
+        if remaining > 0:
+            generic_cost = max(generic_cost, remaining)
+
     return requirements, generic_cost
 
 
 def _produced_colors(land: LandPermanent) -> Sequence[str]:
-    return land.card.produced_mana or ("C",)
+    return land.card.produced_mana or land.card.colors or ("C",)
 
 
 def _plan_payment(requirements: list[frozenset[str]], generic: int, lands: Sequence[LandPermanent]):
