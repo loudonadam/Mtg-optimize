@@ -6,7 +6,7 @@ import urllib.parse
 import urllib.request
 from urllib.error import HTTPError, URLError
 from dataclasses import dataclass
-from typing import Iterable, List
+from typing import Iterable, List, Optional
 
 from .card import Card
 
@@ -14,14 +14,14 @@ from .card import Card
 @dataclass
 class DecklistEntry:
     name: str
-    count: int
+    count: Optional[int]
 
 
 class DecklistError(RuntimeError):
     """Raised when a decklist line cannot be interpreted."""
 
 
-DECKLIST_LINE = re.compile(r"^(?P<count>\d+)\s+(?P<name>.+)$")
+DECKLIST_LINE = re.compile(r"^(?:(?P<count>\d+)\s+)?(?P<name>.+)$")
 
 
 def parse_decklist_lines(lines: Iterable[str]) -> List[DecklistEntry]:
@@ -43,7 +43,8 @@ def parse_decklist_lines(lines: Iterable[str]) -> List[DecklistEntry]:
         match = DECKLIST_LINE.match(line)
         if not match:
             raise DecklistError(f"Could not parse decklist line: {raw!r}")
-        entries.append(DecklistEntry(name=match.group("name"), count=int(match.group("count"))))
+        count = match.group("count")
+        entries.append(DecklistEntry(name=match.group("name"), count=int(count) if count else None))
     return entries
 
 
@@ -68,7 +69,9 @@ def fetch_card_metadata(name: str) -> Card:
     except URLError as exc:  # pragma: no cover - network
         raise DecklistError(f"Scryfall lookup failed for {name!r}: {exc.reason}") from exc
     type_line = payload.get("type_line", "")
-    is_land = "land" in type_line.lower()
+    lowered_type = type_line.lower()
+    is_land = "land" in lowered_type
+    is_basic = is_land and "basic" in lowered_type
     colors = tuple(payload.get("colors", []))
     cmc = payload.get("cmc", 0)
     try:
@@ -81,6 +84,7 @@ def fetch_card_metadata(name: str) -> Card:
         type_line="land" if is_land else "spell",
         mana_cost=0 if is_land else mana_cost,
         colors=colors,
+        is_basic_land=is_basic,
     )
 
 

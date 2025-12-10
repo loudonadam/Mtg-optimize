@@ -19,12 +19,14 @@ class Card:
         colors: Iterable of color symbols a spell requires or a land
             can produce (e.g. ``["G", "U"]``). For colorless spells
             or basic lands that produce colorless mana, leave empty.
+        is_basic_land: True for basic lands (unlimited copies), False otherwise.
     """
 
     name: str
     type_line: str
     mana_cost: int = 0
     colors: Tuple[Color, ...] = field(default_factory=tuple)
+    is_basic_land: bool = False
 
     @property
     def is_land(self) -> bool:

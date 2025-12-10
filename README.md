@@ -37,15 +37,15 @@ Running the CLI prints a numbered list of the best decks. Each entry shows:
 
 ### Importing decklists as a pool or fixed deck
 
-Point the CLI at a text decklist exported by MTGO/Arena (lines like `4 Lightning Bolt`). The tool will fetch mana costs, colors, and types from Scryfall automatically and, by default, treat the list as your **pool** of candidates:
+Point the CLI at a text decklist exported by MTGO/Arena (lines like `4 Lightning Bolt`) **or** a simple list of card names (one per line). The tool will fetch mana costs, colors, and types from Scryfall automatically and, by default, treat the list as your **pool** of candidates:
 
 ```bash
 PYTHONPATH=src python -m mtg_optimize.cli --decklist my_pool.txt --games 200 --turns 6
 ```
 
-In pool mode, each non-land entry is searched from 0–4 copies (or the number you provided, whichever is smaller) while lands can range from 0 up to the provided count. The search targets a 60-card deck unless you override with `--deck-size`, and examines up to 5,000 combinations unless you set `--brute-limit`.
+In pool mode, each non-basic card (including non-basic lands) is searched from 0–4 copies by default. If you provide a number like `6 Forest`, basics are allowed to exceed four; if you omit the number entirely (`Forest`), basics can fill the whole deck size you request. When numbers are present they act as upper bounds, but the four-of cap still applies to non-basics. The search targets a 60-card deck unless you override with `--deck-size`, and examines up to 5,000 combinations unless you set `--brute-limit`.
 
-If you want to simulate an exact imported list instead of exploring combinations, add `--fixed-deck` (and optionally `--deck-size` to match sideboarded counts). This pins every card to the count written and reduces the search to a single simulation run:
+If you want to simulate an exact imported list instead of exploring combinations, add `--fixed-deck` (and optionally `--deck-size` to match sideboarded counts). This pins every card to the count written and reduces the search to a single simulation run; counts are required in this mode so the CLI knows how many copies to fix:
 
 ```bash
 PYTHONPATH=src python -m mtg_optimize.cli --decklist my_deck.txt --fixed-deck --games 200 --turns 6

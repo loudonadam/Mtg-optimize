@@ -11,6 +11,8 @@ from .decklist import DecklistError, fetch_card_metadata, parse_decklist_lines
 from .search import SearchConfig, brute_force_decks, rank_decks
 from .simulator import SimulationConfig, summary_string
 
+BASIC_LANDS = {"Plains", "Island", "Swamp", "Mountain", "Forest", "Wastes"}
+
 
 def load_config(path: Path) -> Dict[str, Any]:
     with path.open() as f:
@@ -88,6 +90,7 @@ def main() -> None:
             )
     else:
         assert args.decklist
+        default_deck_size = args.deck_size or 60
         try:
             lines = args.decklist.read_text().splitlines()
             deck_entries = parse_decklist_lines(lines)
@@ -97,18 +100,29 @@ def main() -> None:
             raise SystemExit(str(exc)) from exc
 
         for entry in deck_entries:
+            if args.fixed_deck and entry.count is None:
+                raise SystemExit("Counts are required for --fixed-deck decklists")
+
             card = fetch_card_metadata(entry.name)
+            is_basic = card.is_basic_land or card.name in BASIC_LANDS
             if args.fixed_deck:
                 min_count = entry.count
                 max_count = entry.count
             else:
                 min_count = 0
-                max_count = entry.count
-                if card.type_line != "land":
+                if entry.count is None:
+                    max_count = default_deck_size if is_basic else 4
+                else:
+                    max_count = entry.count
+                if not is_basic:
                     max_count = min(max_count, 4)
             choices.append(CardChoice(card=card, min_count=min_count, max_count=max_count))
 
-        deck_size = args.deck_size or (sum(entry.count for entry in deck_entries) if args.fixed_deck else 60)
+        deck_size = args.deck_size or (
+            sum(entry.count for entry in deck_entries if entry.count is not None)
+            if args.fixed_deck
+            else 60
+        )
         brute_limit = args.brute_limit or (1 if args.fixed_deck else 5000)
         sim_games = args.games or 500
         sim_turns = args.turns or 6
