@@ -4,6 +4,7 @@ import json
 import re
 import urllib.parse
 import urllib.request
+from urllib.error import HTTPError, URLError
 from dataclasses import dataclass
 from typing import Iterable, List
 
@@ -56,8 +57,16 @@ def fetch_card_metadata(name: str) -> Card:
     base_url = "https://api.scryfall.com/cards/named"
     query = urllib.parse.urlencode({"exact": name})
     url = f"{base_url}?{query}"
-    with urllib.request.urlopen(url, timeout=10) as resp:  # pragma: no cover - network
-        payload = json.loads(resp.read().decode("utf-8"))
+    try:
+        with urllib.request.urlopen(url, timeout=10) as resp:  # pragma: no cover - network
+            payload = json.loads(resp.read().decode("utf-8"))
+    except HTTPError as exc:  # pragma: no cover - network
+        detail = _extract_error_detail(exc)
+        raise DecklistError(
+            f"Scryfall lookup failed for {name!r} (HTTP {exc.code}){detail}"
+        ) from exc
+    except URLError as exc:  # pragma: no cover - network
+        raise DecklistError(f"Scryfall lookup failed for {name!r}: {exc.reason}") from exc
     type_line = payload.get("type_line", "")
     is_land = "land" in type_line.lower()
     colors = tuple(payload.get("colors", []))
@@ -73,3 +82,16 @@ def fetch_card_metadata(name: str) -> Card:
         mana_cost=0 if is_land else mana_cost,
         colors=colors,
     )
+
+
+def _extract_error_detail(exc: HTTPError) -> str:
+    try:
+        body = exc.read()
+    except Exception:
+        return ""
+    try:
+        payload = json.loads(body.decode("utf-8"))
+    except Exception:
+        return ""
+    detail = payload.get("details") or payload.get("error") or payload.get("message")
+    return f": {detail}" if detail else ""
