@@ -3,13 +3,14 @@
   "brute_force_limit": 200,
   "games": 200,
   "turns": 6,
+  "deck_rules": {"min_lands": 20, "max_lands": 28, "min_creatures": 12, "max_creatures": 24},
   "cards": [
     {"name": "Forest", "type": "land", "colors": ["G"], "min": 10, "max": 18},
     {"name": "Island", "type": "land", "colors": ["U"], "min": 10, "max": 18},
-    {"name": "Llanowar Elves", "type": "spell", "mana_cost": 1, "colors": ["G"], "power": 1, "toughness": 1, "min": 4, "max": 8},
+    {"name": "Llanowar Elves", "type": "creature", "mana_cost": 1, "colors": ["G"], "power": 1, "toughness": 1, "min": 4, "max": 8},
     {"name": "Ponder", "type": "spell", "mana_cost": 1, "colors": ["U"], "tags": ["card_draw"], "min": 4, "max": 8},
-    {"name": "Mulldrifter", "type": "spell", "mana_cost": 5, "colors": ["U"], "power": 2, "toughness": 2, "tags": ["card_draw"], "min": 2, "max": 6},
-    {"name": "River Boa", "type": "spell", "mana_cost": 2, "colors": ["G"], "power": 2, "toughness": 1, "min": 3, "max": 8},
-    {"name": "Counterspell", "type": "spell", "mana_cost": 2, "colors": ["U", "U"], "tags": ["counter"], "min": 3, "max": 8}
+    {"name": "Mulldrifter", "type": "creature", "mana_cost": 5, "colors": ["U"], "power": 2, "toughness": 2, "tags": ["card_draw"], "min": 2, "max": 6},
+    {"name": "River Boa", "type": "creature", "mana_cost": 2, "colors": ["G"], "power": 2, "toughness": 1, "min": 3, "max": 8},
+    {"name": "Counterspell", "type": "instant", "mana_cost": 2, "colors": ["U", "U"], "tags": ["counter"], "min": 3, "max": 8}
   ]
 }

@@ -39,7 +39,11 @@ class Card:
 
     @property
     def is_land(self) -> bool:
-        return self.type_line.lower() == "land"
+        return "land" in self.type_line.lower()
+
+    @property
+    def is_creature(self) -> bool:
+        return "creature" in self.type_line.lower()
 
 
 @dataclass(frozen=True)

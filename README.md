@@ -4,7 +4,7 @@ A small toolkit that can brute-force and simulate Magic: The Gathering decklists
 
 ## Features
 - Define a pool of candidate cards and allowed counts.
-- Brute-force valid decklists (bounded by a configurable limit) to explore land ratios and spell suites.
+- Brute-force valid decklists (bounded by a configurable limit) to explore land ratios and spell suites, with optional guardrails for land and creature counts.
 - Monte Carlo draw simulations of the first N turns, scoring decks by spells cast, mana spent, board pressure (power), interaction (removal/counters), card draw, land drops, and color screw frequency.
 - CLI to rank the best-performing decks.
 - Import MTGO/Arena-style text decklists and auto-fill card details using the public Scryfall API.
@@ -27,9 +27,10 @@ Running the CLI prints a numbered list of the best decks. Each entry shows:
 ## Quick start: explore a pool of options
 1. Create a JSON config similar to `example_config.json` where each card describes the **allowed range** of copies to try:
    - `deck_size`: Target deck size (60 by default).
-   - `brute_force_limit`: Optional maximum number of combinations to examine before stopping. If omitted, the CLI will compute the full search space, then let you choose how many decks to simulate (defaulting to 5,000 or the full count if smaller).
+- `brute_force_limit`: Optional maximum number of combinations to examine before stopping. If omitted, the CLI will estimate the full search space quickly (capped for very large pools) and then let you choose how many decks to simulate (defaulting to 5,000 or the full count if smaller).
+- `deck_rules`: Optional land/creature guardrails, e.g. `{ "min_lands": 16, "max_lands": 26, "min_creatures": 12, "max_creatures": 30 }`. These rules can also live in a standalone JSON file passed to `--rules` when importing a decklist.
    - `games` / `turns`: How many simulations to run per deck and how many turns to play out.
-   - `cards`: Candidate cards with `name`, `type` (`"land"` or `"spell"`), `mana_cost`, `colors`, `min`/`max` copies, and optional `power`, `toughness`, and `tags` (e.g., `"removal"`, `"counter"`, `"card_draw"`, `"finisher"`) to weight advanced gameplay metrics. Non-land cards should keep `max` at 4 to follow format rules; raise land `max` as needed to let the search engine try many mana bases.
+- `cards`: Candidate cards with `name`, `type` (`"land"`, `"creature"`, or any spell type string), `mana_cost`, `colors`, `min`/`max` copies, and optional `power`, `toughness`, and `tags` (e.g., `"removal"`, `"counter"`, `"card_draw"`, `"finisher"`) to weight advanced gameplay metrics. Non-land cards should keep `max` at 4 to follow format rules; raise land `max` as needed to let the search engine try many mana bases.
 2. Run the CLI (from the repository root):
    ```bash
    PYTHONPATH=src python -m mtg_optimize.cli --config example_config.json --top 3
@@ -45,6 +46,14 @@ PYTHONPATH=src python -m mtg_optimize.cli --decklist my_pool.txt --games 200 --t
 ```
 
 In pool mode, each non-basic card (including non-basic lands) is searched from 0–4 copies by default. If you provide a number like `6 Forest`, basics are allowed to exceed four; if you omit the number entirely (`Forest`), basics can fill the whole deck size you request. When numbers are present they act as upper bounds, but the four-of cap still applies to non-basics. The search targets a 60-card deck unless you override with `--deck-size`, and examines up to 5,000 combinations unless you set `--brute-limit`.
+
+To enforce deck-shape requirements while exploring a decklist pool, create a small JSON file such as:
+
+```json
+{ "min_lands": 16, "max_lands": 26, "min_creatures": 12, "max_creatures": 30 }
+```
+
+Then run with `--rules path/to/rules.json` so only decks within those bounds are generated.
 
 If you want to simulate an exact imported list instead of exploring combinations, add `--fixed-deck` (and optionally `--deck-size` to match sideboarded counts). This pins every card to the count written and reduces the search to a single simulation run; counts are required in this mode so the CLI knows how many copies to fix:
 
