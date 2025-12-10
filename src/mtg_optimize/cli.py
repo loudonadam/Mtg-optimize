@@ -21,6 +21,18 @@ def main() -> None:
     source = parser.add_mutually_exclusive_group(required=True)
     source.add_argument("--config", type=Path, help="Path to deck search JSON config")
     source.add_argument("--decklist", type=Path, help="Path to MTGO/Arena-style decklist text")
+    parser.add_argument("--deck-size", type=int, default=None, help="Target deck size (default: 60)")
+    parser.add_argument(
+        "--brute-limit",
+        type=int,
+        default=None,
+        help="Maximum deck combinations to explore (default: 5000 or config value)",
+    )
+    parser.add_argument(
+        "--fixed-deck",
+        action="store_true",
+        help="When using --decklist, keep counts exactly as written instead of treating them as a pool",
+    )
     parser.add_argument(
         "--top",
         type=int,
@@ -41,8 +53,8 @@ def main() -> None:
 
     if args.config:
         cfg = load_config(args.config)
-        deck_size = cfg.get("deck_size", 60)
-        brute_limit = cfg.get("brute_force_limit", 5000)
+        deck_size = args.deck_size or cfg.get("deck_size", 60)
+        brute_limit = args.brute_limit or cfg.get("brute_force_limit", 5000)
         sim_games = args.games or cfg.get("games", 500)
         sim_turns = args.turns or cfg.get("turns", 6)
         if seed is None:
@@ -74,10 +86,18 @@ def main() -> None:
 
         for entry in deck_entries:
             card = fetch_card_metadata(entry.name)
-            choices.append(CardChoice(card=card, min_count=entry.count, max_count=entry.count))
+            if args.fixed_deck:
+                min_count = entry.count
+                max_count = entry.count
+            else:
+                min_count = 0
+                max_count = entry.count
+                if card.type_line != "land":
+                    max_count = min(max_count, 4)
+            choices.append(CardChoice(card=card, min_count=min_count, max_count=max_count))
 
-        deck_size = sum(entry.count for entry in deck_entries)
-        brute_limit = 1
+        deck_size = args.deck_size or (sum(entry.count for entry in deck_entries) if args.fixed_deck else 60)
+        brute_limit = args.brute_limit or (1 if args.fixed_deck else 5000)
         sim_games = args.games or 500
         sim_turns = args.turns or 6
 

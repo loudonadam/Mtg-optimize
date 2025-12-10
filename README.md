@@ -34,15 +34,21 @@ Running the CLI prints a numbered list of the best decks. Each entry shows:
    ```
 3. Read the printed deck summaries and pick the mix you want. If you hit the brute-force cap with fewer than `deck_size` cards, tighten ranges or reduce the card pool.
 
-### Importing existing decklists
+### Importing decklists as a pool or fixed deck
 
-You can skip manual JSON entry by pointing the CLI at a text decklist exported by MTGO/Arena (lines like `4 Lightning Bolt`). The tool will fetch mana costs, colors, and types from Scryfall automatically and evaluate the exact list:
+Point the CLI at a text decklist exported by MTGO/Arena (lines like `4 Lightning Bolt`). The tool will fetch mana costs, colors, and types from Scryfall automatically and, by default, treat the list as your **pool** of candidates:
 
 ```bash
-PYTHONPATH=src python -m mtg_optimize.cli --decklist my_deck.txt --games 200 --turns 6
+PYTHONPATH=src python -m mtg_optimize.cli --decklist my_pool.txt --games 200 --turns 6
 ```
 
-When using a decklist, the searcher fixes the card counts exactly as written (no combinations are explored) and simply simulates performance. Use this mode to sanity-check how an existing 60-card list performs over the configured number of games and turns.
+In pool mode, each non-land entry is searched from 0–4 copies (or the number you provided, whichever is smaller) while lands can range from 0 up to the provided count. The search targets a 60-card deck unless you override with `--deck-size`, and examines up to 5,000 combinations unless you set `--brute-limit`.
+
+If you want to simulate an exact imported list instead of exploring combinations, add `--fixed-deck` (and optionally `--deck-size` to match sideboarded counts). This pins every card to the count written and reduces the search to a single simulation run:
+
+```bash
+PYTHONPATH=src python -m mtg_optimize.cli --decklist my_deck.txt --fixed-deck --games 200 --turns 6
+```
 
 ## Notes
 - Colors are written using single-letter MTG symbols (`U`, `G`, `R`, `B`, `W`).
