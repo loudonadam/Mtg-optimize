@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import random
 from dataclasses import dataclass
-from typing import Counter, Iterable, List, Mapping, MutableMapping, Sequence
+from typing import List, Sequence
 
 from .card import Card, DeckList, deck_size, flatten_deck
 
@@ -78,6 +78,12 @@ class TurnTrace:
 
 
 @dataclass
+class LandPermanent:
+    card: Card
+    tapped: bool = False
+
+
+@dataclass
 class SimulationTrace:
     opening_hand: list[Card]
     turns: list[TurnTrace]
@@ -95,6 +101,7 @@ class DrawSimulator:
 
         hand = [library.pop() for _ in range(7)]
         battlefield: List[Card] = []
+        lands_in_play: List[LandPermanent] = []
         spells_cast = 0
         mana_spent = 0
         total_board_impact = 0.0
@@ -119,6 +126,10 @@ class DrawSimulator:
             card_draw_this_turn = 0
             finishers_this_turn = 0
 
+            # Untap step
+            for land in lands_in_play:
+                land.tapped = False
+
             draw: Card | None = None
             if library:
                 draw = library.pop()
@@ -126,55 +137,43 @@ class DrawSimulator:
                 if capture_trace:
                     turn_actions.append(f"Drew {draw.name}")
 
-            mana_pool: Counter[str] = Counter()
-
             land_played_this_turn = False
-            for idx, card in enumerate(list(hand)):
-                if card.is_land:
-                    hand.pop(idx)
-                    battlefield.append(card)
-                    land_played_this_turn = True
-                    if capture_trace:
-                        turn_actions.append(f"Played land {card.name}")
-                    break
+            for idx, card in enumerate(sorted(list(hand), key=_land_priority, reverse=True)):
+                if not card.is_land:
+                    continue
+                hand.remove(card)
+                land_played_this_turn = True
+                land_perm = LandPermanent(card=card, tapped=card.enters_tapped)
+                lands_in_play.append(land_perm)
+                if capture_trace:
+                    status = "tapped" if card.enters_tapped else "untapped"
+                    turn_actions.append(f"Played land {card.name} ({status})")
+                break
 
             if not land_played_this_turn:
                 land_drops_missed += 1
 
-            for card in battlefield:
-                if card.is_land:
-                    if card.colors:
-                        for color in card.colors:
-                            mana_pool[color] += 1
-                    else:
-                        mana_pool["C"] += 1
-
-            castable_indices: List[int] = []
-            for idx, card in enumerate(hand):
-                if card.is_land:
-                    continue
-                if card.mana_cost <= sum(mana_pool.values()) and _has_colors(
-                    card.colors, mana_pool
-                ):
-                    castable_indices.append(idx)
-
-            cast_plan = sorted(
-                castable_indices, key=lambda i: (hand[i].mana_cost, i), reverse=True
-            )
             casted_indices: List[int] = []
+            cast_plan = sorted(
+                [i for i, c in enumerate(hand) if not c.is_land],
+                key=lambda i: (hand[i].mana_cost, i),
+                reverse=True,
+            )
+
             for idx in cast_plan:
                 card = hand[idx]
-                if card.mana_cost > sum(mana_pool.values()):
+                payment = _pay_for_spell(card, lands_in_play)
+                if payment is None:
                     continue
-                if not _has_colors(card.colors, mana_pool):
-                    continue
-                _spend_mana(card.colors, mana_pool, card.mana_cost)
                 spells_cast += 1
                 spells_cast_this_turn += 1
                 mana_spent += card.mana_cost
                 mana_spent_this_turn += card.mana_cost
                 casted_indices.append(idx)
                 battlefield.append(card)
+
+                if capture_trace:
+                    turn_actions.extend(payment)
 
                 details: list[str] = []
                 if card.impact_score:
@@ -223,10 +222,15 @@ class DrawSimulator:
             total_board_impact += board_impact
 
             color_screw_this_turn = False
-            if castable_indices and not spells_cast_this_turn:
+            castable_spells = [
+                card
+                for card in hand
+                if not card.is_land and _can_pay_for_spell(card, lands_in_play)
+            ]
+            if castable_spells and not spells_cast_this_turn:
                 color_screw_turns += 1
                 color_screw_this_turn = True
-            elif not castable_indices and sum(mana_pool.values()) > 0:
+            elif not castable_spells and any(not land.tapped for land in lands_in_play):
                 color_screw_turns += 1
                 color_screw_this_turn = True
 
@@ -480,27 +484,92 @@ def describe_card_rating(card: Card) -> str:
     return "\n".join(lines)
 
 
-def _has_colors(spell_colors: Sequence[str], mana_pool: Mapping[str, int]) -> bool:
-    if not spell_colors:
-        return True
-    required = Counter(spell_colors)
-    for color, need in required.items():
-        if mana_pool.get(color, 0) < need:
-            return False
-    return True
+def _land_priority(card: Card) -> tuple[int, int]:
+    # Prefer untapped lands first, then multi-color flexibility.
+    untapped_bonus = 1 if not card.enters_tapped else 0
+    color_flex = len(card.produced_mana) if card.produced_mana else 1
+    return (untapped_bonus, color_flex)
 
 
-def _spend_mana(spell_colors: Sequence[str], mana_pool: MutableMapping[str, int], cost: int) -> None:
-    required = Counter(spell_colors)
-    paid = 0
-    for color, need in required.items():
-        available = mana_pool.get(color, 0)
-        used = min(available, need)
-        mana_pool[color] = available - used
-        paid += used
-    colorless_needed = max(0, cost - paid)
-    if colorless_needed:
-        spend_sources: List[str] = [c for c, v in mana_pool.items() for _ in range(v)]
-        spend_sources = spend_sources[:colorless_needed]
-        for color in spend_sources:
-            mana_pool[color] -= 1
+def _cost_requirements(card: Card) -> tuple[list[frozenset[str]], int]:
+    requirements: list[frozenset[str]] = []
+    generic_cost = card.generic_cost
+    for symbol in card.mana_cost_symbols:
+        if symbol == "C":
+            requirements.append(frozenset({"C"}))
+        else:
+            requirements.append(frozenset({symbol}))
+    if not requirements and generic_cost == 0 and card.mana_cost:
+        generic_cost = card.mana_cost
+    return requirements, generic_cost
+
+
+def _produced_colors(land: LandPermanent) -> Sequence[str]:
+    return land.card.produced_mana or ("C",)
+
+
+def _plan_payment(requirements: list[frozenset[str]], generic: int, lands: Sequence[LandPermanent]):
+    untapped_indices = [i for i, land in enumerate(lands) if not land.tapped]
+
+    def backtrack(reqs: list[frozenset[str]], used: list[tuple[int, str]]):
+        if not reqs:
+            return used
+        need = reqs[0]
+        for idx in untapped_indices:
+            if any(idx == u_idx for u_idx, _ in used):
+                continue
+            land = lands[idx]
+            for color in _produced_colors(land):
+                if color in need:
+                    res = backtrack(reqs[1:], used + [(idx, color)])
+                    if res is not None:
+                        return res
+        return None
+
+    colored_plan = backtrack(list(requirements), [])
+    if colored_plan is None:
+        return None
+
+    used_indices = {idx for idx, _ in colored_plan}
+    remaining_generic = generic
+    generic_plan: list[tuple[int, str]] = []
+    for idx in untapped_indices:
+        if idx in used_indices:
+            continue
+        if remaining_generic <= 0:
+            break
+        land = lands[idx]
+        produced = _produced_colors(land)
+        color_used = produced[0] if produced else "C"
+        generic_plan.append((idx, color_used))
+        remaining_generic -= 1
+
+    if remaining_generic > 0:
+        return None
+
+    return colored_plan + generic_plan
+
+
+def _can_pay_for_spell(card: Card, lands: Sequence[LandPermanent]) -> bool:
+    requirements, generic = _cost_requirements(card)
+    plan = _plan_payment(requirements, generic, lands)
+    return plan is not None
+
+
+def _pay_for_spell(card: Card, lands: Sequence[LandPermanent]) -> list[str] | None:
+    requirements, generic = _cost_requirements(card)
+    plan = _plan_payment(requirements, generic, lands)
+    if plan is None:
+        return None
+
+    actions: list[str] = []
+    tapped: set[int] = set()
+    for idx, color in plan:
+        if idx in tapped:
+            continue
+        land = lands[idx]
+        land.tapped = True
+        tapped.add(idx)
+        color_label = color if color != "C" else "colorless"
+        actions.append(f"Tapped {land.card.name} for {color_label} mana")
+    return actions

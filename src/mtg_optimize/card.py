@@ -28,6 +28,15 @@ class Card:
         tags: Optional descriptors such as ``"removal"``, ``"counter"``,
             ``"card_draw"``, or ``"finisher"`` that influence scoring.
         is_basic_land: True for basic lands (unlimited copies), False otherwise.
+        mana_cost_symbols: Individual mana symbols required to cast the spell.
+            This is derived from the card's printed cost (e.g., ``{1}{U}{U}``
+            becomes ``("U", "U")`` with ``generic_cost`` of ``1``).
+        generic_cost: Colorless portion of the mana cost that can be paid with
+            any mana.
+        produced_mana: Colors of mana this land can produce. Empty for lands
+            that only create colorless mana. Non-land cards ignore this field.
+        enters_tapped: True if the land enters the battlefield tapped and
+            cannot be used for mana the turn it is played.
     """
 
     name: str
@@ -39,6 +48,10 @@ class Card:
     impact_score: float = 0.0
     tags: Tuple[str, ...] = field(default_factory=tuple)
     is_basic_land: bool = False
+    mana_cost_symbols: Tuple[str, ...] = field(default_factory=tuple)
+    generic_cost: int = 0
+    produced_mana: Tuple[str, ...] = field(default_factory=tuple)
+    enters_tapped: bool = False
 
     @property
     def is_land(self) -> bool:
