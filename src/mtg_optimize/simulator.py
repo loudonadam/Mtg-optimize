@@ -209,6 +209,23 @@ def simulate_deck(deck: DeckList, config: SimulationConfig) -> SimulationSummary
 
 
 def summary_string(summary: SimulationSummary) -> str:
+    def format_section(title: str, items: list[tuple[Card, int]]) -> list[str]:
+        if not items:
+            return []
+        section = [f"{title}:"]
+        for card, count in sorted(items, key=lambda item: item[0].name):
+            section.append(f"{count} {card.name}")
+        return section
+
+    deck_entries = [(card, count) for card, count in summary.deck.items() if count > 0]
+    creatures = [(card, count) for card, count in deck_entries if card.is_creature and not card.is_land]
+    lands = [(card, count) for card, count in deck_entries if card.is_land]
+    spells = [
+        (card, count)
+        for card, count in deck_entries
+        if not card.is_land and not card.is_creature
+    ]
+
     lines = [
         f"Avg score: {summary.average_score:.2f}",
         f"Spells cast: {summary.average_spells_cast:.2f}",
@@ -222,9 +239,9 @@ def summary_string(summary: SimulationSummary) -> str:
         f"Missed land drops: {summary.average_land_miss:.2f}",
         "Deck:",
     ]
-    for card, count in summary.deck.items():
-        if count > 0:
-            lines.append(f"{count} {card.name}")
+    lines.extend(format_section("Creatures", creatures))
+    lines.extend(format_section("Spells", spells))
+    lines.extend(format_section("Lands", lands))
     return "\n".join(lines)
 
 

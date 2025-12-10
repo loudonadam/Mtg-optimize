@@ -78,8 +78,8 @@ def main() -> None:
     parser.add_argument(
         "--top",
         type=int,
-        default=3,
-        help="How many top decks to print (default: 3)",
+        default=1,
+        help="How many top decks to print (default: 1)",
     )
     parser.add_argument("--games", type=int, default=None, help="Override simulation game count")
     parser.add_argument("--turns", type=int, default=None, help="Override simulation turn horizon")
@@ -179,6 +179,27 @@ def main() -> None:
         brute_limit = args.brute_limit or (1 if args.fixed_deck else None)
         sim_games = args.games or 500
         sim_turns = args.turns or 6
+
+    if rules is None:
+        default_rules_path = Path("deck_rules.json")
+        if default_rules_path.exists():
+            candidate_rules = load_rules(default_rules_path)
+            max_lands_possible = sum(
+                choice.max_count for choice in choices if choice.card.is_land
+            )
+            max_creatures_possible = sum(
+                choice.max_count for choice in choices if choice.card.is_creature
+            )
+            rules_fit = (
+                (candidate_rules.min_lands is None or max_lands_possible >= candidate_rules.min_lands)
+                and (
+                    candidate_rules.min_creatures is None
+                    or max_creatures_possible >= candidate_rules.min_creatures
+                )
+                and (candidate_rules.min_lands is None or deck_size >= candidate_rules.min_lands)
+            )
+            if rules_fit:
+                rules = candidate_rules
 
     deck_count = count_possible_decks(choices, deck_size, rules=rules)
     total_possible = deck_count.total

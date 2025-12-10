@@ -24,6 +24,18 @@ Running the CLI prints a numbered list of the best decks. Each entry shows:
 - **Deck breakdown**: The exact counts chosen for each candidate card.
 - Progress messages are printed to stderr during long runs to show deck-search and simulation completion percentages.
 
+### How scoring works
+Each simulated game computes a composite score designed to reward proactive starts while penalizing stumbles:
+
+- **Proactive play**: Casting spells and spending mana early are the backbone of the score.
+- **Board impact**: Creatures add their power, toughness, and any user-provided impact score to sustained pressure on the battlefield.
+- **Spell impact**: Non-creature spells add their impact scores immediately when cast so utility cards can outweigh raw stats.
+- **Interaction & resilience**: Removal, counterspells, and card draw tagged in the card pool add extra weight toward the total.
+- **Finishers**: Cards tagged as finishers provide a further bump.
+- **Penalties**: Missing land drops or failing to cast spells because of color issues subtract from the score.
+
+Average metrics are reported over all simulated games so you can see how the scoring components contributed to a deck's placement.
+
 ## Quick start: explore a pool of options
 1. Create a JSON config similar to `example_config.json` where each card describes the **allowed range** of copies to try:
    - `deck_size`: Target deck size (60 by default).
@@ -53,7 +65,7 @@ To enforce deck-shape requirements while exploring a decklist pool, create a sma
 { "min_lands": 16, "max_lands": 26, "min_creatures": 12, "max_creatures": 30 }
 ```
 
-This repository includes a starter `deck_rules.json` you can edit directly and pass to the CLI. Update the numbers to match the constraints you want, then run with `--rules deck_rules.json` (or another path) so only decks within those bounds are generated.
+This repository includes a starter `deck_rules.json` you can edit directly and pass to the CLI. Update the numbers to match the constraints you want, then run with `--rules deck_rules.json` (or another path) so only decks within those bounds are generated. If you skip `--rules` but keep a `deck_rules.json` in your working directory, it will be applied automatically so searches still respect your land and creature minimums/maximums.
 
 If you want to simulate an exact imported list instead of exploring combinations, add `--fixed-deck` (and optionally `--deck-size` to match sideboarded counts). This pins every card to the count written and reduces the search to a single simulation run; counts are required in this mode so the CLI knows how many copies to fix:
 
